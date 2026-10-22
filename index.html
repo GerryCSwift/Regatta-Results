@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regatta Results</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --muted:#667; --accent:#1e5bd8; --line:#d8dce3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --fg:#eee; --muted:#9aa; --accent:#6ea0ff; --line:#2a2f38; }
+  }
+  body { margin:0; padding:16px; max-width:720px; background:var(--bg); color:var(--fg);
+         font:16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  a { color:var(--accent); }
+  h1 { font-size:1.5rem; }
+  h2 { font-size:1.1rem; margin:24px 0 6px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { padding:6px 0; display:flex; justify-content:space-between; gap:12px; }
+  .muted { color:var(--muted); font-size:.85rem; white-space:nowrap; }
+</style>
+</head>
+<body>
+<h1 id="h">Regatta Results</h1>
+<p id="filter"></p>
+<div id="list">Loading…</div>
+
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const only = new URLSearchParams(location.search).get('series');
+
+(async () => {
+  const list = document.getElementById('list');
+  try {
+    const res = await fetch('data/index.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('No results published yet.');
+    let items = (await res.json()).regattas;
+    if (only) {
+      items = items.filter(r => r.seriesSlug === only);
+      const name = items[0]?.seriesName;
+      if (name) document.getElementById('h').textContent = name;
+      document.getElementById('filter').innerHTML = '<a href="./">&larr; All regattas</a>';
+    }
+    if (!items.length) { list.textContent = 'No regattas found.'; return; }
+
+    const groups = new Map();
+    for (const r of items) {
+      const key = r.seriesName || 'Other regattas';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    let html = '';
+    for (const [name, rs] of groups) {
+      html += `<h2>${esc(name)}</h2><ul>`;
+      for (const r of rs) {
+        html += `<li><a href="regatta.html?r=${encodeURIComponent(r.slug)}">${esc(r.name)}</a>` +
+                `<span class="muted">${r.isFinal ? 'Final' : 'In progress'} · ${new Date(r.updated).toLocaleDateString()}</span></li>`;
+      }
+      html += '</ul>';
+    }
+    list.innerHTML = html;
+  } catch (e) { list.textContent = e.message; }
+})();
+</script>
+</body>
+</html>
