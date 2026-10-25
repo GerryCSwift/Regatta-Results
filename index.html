@@ -13,7 +13,9 @@
          font:16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   a { color:var(--accent); }
   h1 { font-size:1.5rem; }
-  h2 { font-size:1.1rem; margin:24px 0 6px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  h2 { font-size:1.1rem; margin:24px 0 6px; border-bottom:1px solid var(--line); padding-bottom:4px;
+       display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+  h2 small { font-size:.85rem; font-weight:normal; }
   ul { list-style:none; padding:0; margin:0; }
   li { padding:6px 0; display:flex; justify-content:space-between; gap:12px; }
   .muted { color:var(--muted); font-size:.85rem; white-space:nowrap; }
@@ -33,27 +35,37 @@ const only = new URLSearchParams(location.search).get('series');
   try {
     const res = await fetch('data/index.json?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error('No results published yet.');
-    let items = (await res.json()).regattas;
+    const idx = await res.json();
+    const seriesList = idx.series || [];
+    let items = idx.regattas;
+
     if (only) {
       items = items.filter(r => r.seriesSlug === only);
-      const name = items[0]?.seriesName;
+      const name = items[0]?.seriesName || seriesList.find(s => s.slug === only)?.name;
       if (name) document.getElementById('h').textContent = name;
       document.getElementById('filter').innerHTML = '<a href="./">&larr; All regattas</a>';
     }
-    if (!items.length) { list.textContent = 'No regattas found.'; return; }
 
-    const groups = new Map();
+    const groups = new Map();     // series regattas grouped; standalone regattas last
     for (const r of items) {
-      const key = r.seriesName || 'Other regattas';
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(r);
+      const key = r.seriesSlug || '';
+      if (!groups.has(key)) groups.set(key, { name: r.seriesName, slug: r.seriesSlug, rs: [] });
+      groups.get(key).rs.push(r);
     }
+    for (const s of seriesList) {                     // series with standings but no regattas listed here
+      if (!groups.has(s.slug) && (!only || only === s.slug)) groups.set(s.slug, { name: s.name, slug: s.slug, rs: [] });
+    }
+    const ordered = [...groups.values()].sort((a, b) => (!a.slug) - (!b.slug) || String(a.name).localeCompare(String(b.name)));
+    if (!ordered.length) { list.textContent = 'No regattas found.'; return; }
+
     let html = '';
-    for (const [name, rs] of groups) {
-      html += `<h2>${esc(name)}</h2><ul>`;
-      for (const r of rs) {
+    for (const g of ordered) {
+      const hasStandings = g.slug && seriesList.some(s => s.slug === g.slug);
+      const link = hasStandings ? `<small><a href="series.html?s=${encodeURIComponent(g.slug)}">Series standings</a></small>` : '';
+      html += `<h2><span>${esc(g.name || 'Regattas')}</span>${link}</h2><ul>`;
+      for (const r of g.rs) {
         html += `<li><a href="regatta.html?r=${encodeURIComponent(r.slug)}">${esc(r.name)}</a>` +
-                `<span class="muted">${r.isFinal ? 'Final' : 'In progress'} · ${new Date(r.updated).toLocaleDateString()}</span></li>`;
+                `<span class="muted">${r.isFinal ? 'Final' : 'In progress'} · ${new Date(r.startDate).toLocaleDateString()}</span></li>`;
       }
       html += '</ul>';
     }
