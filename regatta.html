@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
 <title>Regatta Results</title>
 <style>
-  :root { --bg:#fff; --fg:#111; --muted:#667; --head:#1e5bd8; --seed:#2a9d4a; --line:#d8dce3; }
+  :root { --bg:#fff; --fg:#111; --muted:#667; --head:#1e5bd8; --seed:#2a9d4a; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#111418; --fg:#eee; --muted:#9aa; --head:#2f6fe8; --seed:#2a9d4a; --line:#2a2f38; }
+    :root { --bg:#111418; --fg:#eee; --muted:#9aa; --head:#2f6fe8; --seed:#2a9d4a; }
   }
   body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
          font:15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -36,7 +38,6 @@
 </style>
 </head>
 <body>
-<p><a href="./">&larr; All regattas</a></p>
 <h1 id="title">Loading…</h1>
 <div class="meta" id="meta"></div>
 <div class="legend">
@@ -47,9 +48,13 @@
 <div class="foot">Scoring by ezRegatta, a Broadreach Services Application</div>
 
 <script>
-const slug = new URLSearchParams(location.search).get('r');
+// EDIT: address of the data repo's GitHub Pages site (no trailing slash)
+const DATA_BASE = 'https://YOUR-GITHUB-OWNER.github.io/ezregatta-data';
+
+const slug = new URLSearchParams(location.search).get('r') || '';
+const SLUG_OK = /^[a-f0-9]{16,64}$/;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const num = n => String(Math.round(n * 10) / 10);
+const num = n => String(Math.round(Number(n) * 10) / 10);
 // same order as heatColors in the app (index 0 = none)
 const PALETTE = [null,'#34C759','#FF9500','#007AFF','#FF3B30','#30B0C7','#AF52DE','#5856D6','#FFCC00'];
 const SHADE = { NotScored:'sh-red', RET:'sh-r2', DNC:'sh-r2', DNF:'sh-r2', DNS:'sh-r2', OCS:'sh-r2', ZFP:'sh-r2',
@@ -61,8 +66,8 @@ let timer;
 
 async function load() {
   try {
-    const res = await fetch(`data/regattas/${encodeURIComponent(slug)}.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Results not found');
+    const res = await fetch(`${DATA_BASE}/regattas/${slug}.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Results not found. Check the link, or the organiser may have removed them.');
     render(await res.json());
     document.getElementById('err').textContent = '';
   } catch (e) { document.getElementById('err').textContent = e.message; }
@@ -73,7 +78,8 @@ function render(d) {
   document.title = d.name + ' – Results';
   document.getElementById('title').innerHTML =
     esc(d.name) + `<span class="badge ${d.isFinal ? 'final' : ''}">${d.isFinal ? 'Final' : 'In progress'}</span>`;
-  const series = d.seriesSlug ? `<a href="./?series=${encodeURIComponent(d.seriesSlug)}">${esc(d.seriesName)}</a> · ` : '';
+  const series = SLUG_OK.test(d.seriesSlug || '')
+    ? `<a href="series.html?s=${encodeURIComponent(d.seriesSlug)}">${esc(d.seriesName)} standings</a> · ` : '';
   document.getElementById('meta').innerHTML = series + new Date(d.startDate).toLocaleDateString(undefined, {dateStyle:'long'})
     + ' · Updated ' + new Date(d.updated).toLocaleString();
 
@@ -84,7 +90,7 @@ function render(d) {
   h += '<th>Sail</th><th>Name</th>';
   if (t.showDesign) h += '<th>Design</th>';
   h += '<th>Net</th><th>Gross</th>';
-  for (const c of t.columns) h += `<th class="${c.isSeed ? 'seed' : ''}">R ${c.number}</th>`;
+  for (const c of t.columns) h += `<th class="${c.isSeed ? 'seed' : ''}">R ${esc(c.number)}</th>`;
   h += '</tr></thead><tbody>';
 
   for (const r of t.rows) {
@@ -95,7 +101,7 @@ function render(d) {
     }
     h += `<td>${esc(r.place)}</td>`;
     if (t.showCountry) h += `<td>${esc(r.country)}</td>`;
-    h += `<td>${String(r.sail).padStart(2, '0')}</td><td class="name">${esc(r.name)}</td>`;
+    h += `<td>${esc(String(r.sail).padStart(2, '0'))}</td><td class="name">${esc(r.name)}</td>`;
     if (t.showDesign) h += `<td>${esc(r.design)}</td>`;
     h += `<td>${num(r.net)}</td><td>${num(r.gross)}</td>`;
     for (const c of r.cells) {
@@ -111,7 +117,7 @@ function render(d) {
   if (!d.isFinal) timer = setInterval(load, 60000);
 }
 
-if (!slug) document.getElementById('err').textContent = 'No regatta specified.';
+if (!SLUG_OK.test(slug)) document.getElementById('err').textContent = 'No results specified. Use the link from the organiser.';
 else load();
 </script>
 </body>

@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
 <title>Series Standings</title>
 <style>
   :root { --bg:#fff; --fg:#111; --muted:#667; --head:#1e5bd8; --seed:#2a9d4a; }
@@ -37,7 +39,6 @@
 </style>
 </head>
 <body>
-<p><a href="./">&larr; All regattas</a></p>
 <h1 id="title">Loading…</h1>
 <div class="meta" id="meta"></div>
 <div class="legend">
@@ -48,9 +49,13 @@
 <div class="foot">Scoring by ezRegatta, a Broadreach Services Application</div>
 
 <script>
-const slug = new URLSearchParams(location.search).get('s');
+// EDIT: address of the data repo's GitHub Pages site (no trailing slash)
+const DATA_BASE = 'https://YOUR-GITHUB-OWNER.github.io/ezregatta-data';
+
+const slug = new URLSearchParams(location.search).get('s') || '';
+const SLUG_OK = /^[a-f0-9]{16,64}$/;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const num = n => String(Math.round(n * 10) / 10);
+const num = n => String(Math.round(Number(n) * 10) / 10);
 const dmy = d => new Date(d).toLocaleDateString(undefined, { day:'2-digit', month:'2-digit', year:'2-digit' });
 const SHADE = { NotScored:'sh-red', RET:'sh-r2', DNC:'sh-r2', DNF:'sh-r2', DNS:'sh-r2', OCS:'sh-r2', ZFP:'sh-r2',
   SCP:'sh-r2', NSC:'sh-r2', DPI:'sh-r2', DNE:'sh-r5', DSQ:'sh-r5', BFD:'sh-r5', UFD:'sh-r5', DGM:'sh-r5',
@@ -58,15 +63,15 @@ const SHADE = { NotScored:'sh-red', RET:'sh-r2', DNC:'sh-r2', DNF:'sh-r2', DNS:'
 
 (async () => {
   const err = document.getElementById('err');
-  if (!slug) { err.textContent = 'No series specified.'; return; }
+  if (!SLUG_OK.test(slug)) { err.textContent = 'No series specified. Use the link from the organiser.'; return; }
   try {
-    const res = await fetch(`data/series/${encodeURIComponent(slug)}.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Standings not published yet');
+    const res = await fetch(`${DATA_BASE}/series/${slug}.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Standings not found. Check the link, or they may not be published yet.');
     render(await res.json());
   } catch (e) { err.textContent = e.message; }
 })();
 
-const regLink = h => h.regattaSlug
+const regLink = h => SLUG_OK.test(h.regattaSlug || '')
   ? `<a href="regatta.html?r=${encodeURIComponent(h.regattaSlug)}">${esc(h.regatta)}</a>` : esc(h.regatta);
 
 function render(d) {
@@ -80,7 +85,7 @@ function render(d) {
   if (d.byRegatta) {
     h += '<tr>' + fixed.map(x => `<th>${esc(x)}</th>`).join('') +
       d.heads.map(x => `<th>${dmy(x.date)}<small>${regLink(x)}</small>` +
-        `${x.weight != null ? `<small class="w">${x.weight.toFixed(1)}</small>` : ''}</th>`).join('') + '</tr>';
+        `${x.weight != null ? `<small class="w">${Number(x.weight).toFixed(1)}</small>` : ''}</th>`).join('') + '</tr>';
   } else {
     // row 1: regatta (date + name) spanning its races; row 2: race labels, seed races green
     const groups = [];
@@ -90,14 +95,14 @@ function render(d) {
       else groups.push({ regatta: x.regatta, date: x.date, head: x, n: 1 });
     }
     h += '<tr>' + fixed.map(x => `<th rowspan="2">${esc(x)}</th>`).join('') +
-      groups.map(g => `<th colspan="${g.n}">${dmy(g.date)}<small>${regLink(g.head)}</small></th>`).join('') + '</tr>';
+      groups.map(g => `<th colspan="${Number(g.n)}">${dmy(g.date)}<small>${regLink(g.head)}</small></th>`).join('') + '</tr>';
     h += '<tr>' + d.heads.map(x => `<th class="${x.isSeed ? 'seed' : ''}">${esc(x.label)}</th>`).join('') + '</tr>';
   }
   h += '</thead><tbody>';
 
   for (const r of d.rows) {
-    h += `<tr><td>${r.rank}</td><td class="name">${esc(r.name)}</td><td class="net">${num(r.net)}</td><td>${num(r.gross)}</td>` +
-         `<td class="${r.belowMinimum ? 'sh-r2 out' : ''}">${r.sailed}</td><td>${r.dnc}</td>`;
+    h += `<tr><td>${esc(r.rank)}</td><td class="name">${esc(r.name)}</td><td class="net">${num(r.net)}</td><td>${num(r.gross)}</td>` +
+         `<td class="${r.belowMinimum ? 'sh-r2 out' : ''}">${esc(r.sailed)}</td><td>${esc(r.dnc)}</td>`;
     for (const c of r.cells) {
       if (!c) { h += '<td>-</td>'; continue; }
       const cls = ['score', SHADE[c.code] || '', c.thrownOut ? 'out' : ''].join(' ');
