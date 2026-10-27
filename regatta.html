@@ -49,8 +49,9 @@
 
 <script>
 // EDIT: address of the data repo's GitHub Pages site (no trailing slash)
-const DATA_BASE = 'https://gerrycswift.github.io/ezregatta-data';
-
+//OLD const DATA_BASE = 'https://gerrycswift.github.io/ezregatta-data';
+const DATA_BASE = 'https://raw.githubusercontent.com/gerrycswift/ezregatta-data/main';
+  
 const slug = new URLSearchParams(location.search).get('r') || '';
 const SLUG_OK = /^[a-f0-9]{16,64}$/;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
