@@ -34,12 +34,16 @@
   .sh-r5 { background:rgba(255,59,48,.5); }
   .sh-g  { background:rgba(52,199,89,.3); }
   #err { color:#c00; }
+  .live { color:var(--muted); font-size:.8rem; margin:0 0 8px; display:flex; gap:10px; align-items:center; }
+  .live button { font:inherit; padding:1px 10px; border:1px solid var(--muted); border-radius:6px;
+                 background:transparent; color:var(--fg); }
   .foot { color:var(--muted); font-size:.75rem; margin-top:16px; }
 </style>
 </head>
 <body>
 <h1 id="title">Loading…</h1>
 <div class="meta" id="meta"></div>
+<div class="live"><button id="refresh" type="button">Refresh</button><span id="stamp"></span></div>
 <div class="legend">
   <span class="out">Discard</span><span class="sh-r2">DNx</span><span class="sh-r5">DSQ, DNE</span><span class="sh-g">RDG</span>
 </div>
@@ -48,10 +52,9 @@
 <div class="foot">Scoring by ezRegatta, a Broadreach Services Application</div>
 
 <script>
-// EDIT: address of the data repo's GitHub Pages site (no trailing slash)
-//OLD const DATA_BASE = 'https://gerrycswift.github.io/ezregatta-data';
-const DATA_BASE = 'https://raw.githubusercontent.com/gerrycswift/ezregatta-data/main';
-  
+// EDIT: address of the results service (the Cloudflare Worker) followed by /d, no trailing slash
+const DATA_BASE = 'https://YOUR-WORKER.workers.dev/d';
+
 const slug = new URLSearchParams(location.search).get('r') || '';
 const SLUG_OK = /^[a-f0-9]{16,64}$/;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -63,15 +66,25 @@ const SHADE = { NotScored:'sh-red', RET:'sh-r2', DNC:'sh-r2', DNF:'sh-r2', DNS:'
   WDN:'sh-r5', RDG:'sh-g', RDGm:'sh-g' };
 const textOn = hex => { const n = parseInt(hex.slice(1), 16);
   return ((n>>16)*299 + ((n>>8)&255)*587 + (n&255)*114) / 1000 > 150 ? '#111' : '#fff'; };
-let timer;
+const POLL_MS = 15000;      // how often an open page checks for new results (paused while the tab is hidden)
+let timer, last = '', busy = false;
 
 async function load() {
+  if (busy) return;
+  busy = true;
+  const err = document.getElementById('err'), stamp = document.getElementById('stamp');
+  stamp.textContent = 'Checking…';
   try {
     const res = await fetch(`${DATA_BASE}/regattas/${slug}.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Results not found. Check the link, or the organiser may have removed them.');
-    render(await res.json());
-    document.getElementById('err').textContent = '';
-  } catch (e) { document.getElementById('err').textContent = e.message; }
+    if (!res.ok) { const e = new Error('Results not found. Check the link, or the organiser may have removed them.'); e.fatal = true; throw e; }
+    const txt = await res.text();
+    if (txt !== last) { last = txt; render(JSON.parse(txt)); }      // redraw only when something changed
+    err.textContent = '';
+    stamp.textContent = 'Checked ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    if (!last || e.fatal) err.textContent = e.message;
+    else stamp.textContent = 'Connection problem, retrying…';
+  } finally { busy = false; }
 }
 
 function render(d) {
@@ -114,12 +127,16 @@ function render(d) {
   }
   document.getElementById('tbl').innerHTML = h + '</tbody>';
 
-  clearInterval(timer);
-  if (!d.isFinal) timer = setInterval(load, 60000);
+  if (d.isFinal) clearInterval(timer);      // final results: stop polling (the Refresh button still works)
 }
 
 if (!SLUG_OK.test(slug)) document.getElementById('err').textContent = 'No results specified. Use the link from the organiser.';
-else load();
+else {
+  document.getElementById('refresh').onclick = load;
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  timer = setInterval(() => { if (!document.hidden) load(); }, POLL_MS);
+  load();
+}
 </script>
 </body>
 </html>
