@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<title>Results</title>
+<title>All Results List</title>
 <style>
   :root { --bg:#fff; --fg:#111; --muted:#667; --head:#1e5bd8; --line:#dde; }
   @media (prefers-color-scheme: dark) {
@@ -32,7 +32,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Loading…</h1>
+<h1 id="title">All Results List</h1>
 <div class="meta" id="meta"></div>
 <div class="live"><button id="refresh" type="button">Refresh</button><span id="stamp"></span></div>
 <div id="list"></div>
@@ -41,7 +41,7 @@
 
 <script>
 // EDIT: address of the results service (the Cloudflare Worker) followed by /d, no trailing slash
-const DATA_BASE = 'https://ezregatta-results.ezregatta.workers.dev/d';
+const DATA_BASE = 'https://YOUR-WORKER.workers.dev/d';
 
 const slug = new URLSearchParams(location.search).get('o') || '';
 const SLUG_OK = /^[a-f0-9]{16,64}$/;
@@ -83,8 +83,7 @@ const regattaItem = r => SLUG_OK.test(r.slug || '')
   : '';
 
 function render(d) {
-  document.title = 'Results';
-  document.getElementById('title').textContent = 'Results';
+  document.title = 'All Results List';
   document.getElementById('meta').textContent = `Updated ${new Date(d.updated).toLocaleString()}`;
 
   let h = '';
